@@ -1,0 +1,30 @@
+paths:
+  data_raw: data/raw
+  data_features: data/features
+  data_models: data/models
+  transcripts_cache: data/transcripts
+
+audio:
+  sample_rate: 16000
+  energy_threshold: 0.01
+  min_pause_duration: 0.3
+
+face:
+  frame_skip: 3
+  min_detection_rate: 0.5
+
+text:
+  whisper_model: base
+  sentiment_model_en: cardiffnlp/twitter-roberta-base-sentiment-latest
+  sentiment_model_indic: google/muril-base-cased
+  language_detect: true
+
+training:
+  n_folds: 5
+  test_size: 0.2
+  random_state: 42
+
+backend:
+  database: sqlite:///data/emotitrack.db
+  keep_raw: false
+  upload_dir: data/uploads
