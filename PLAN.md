@@ -1,313 +1,482 @@
-# EmotiTrack — The Plan
+# EmotiTrack — Development Plan
 
-> **One session. 5 minutes. Two outputs.**
-> This is the single source of truth. If it's not in this file, we don't build it.
+> **Single source of truth for this project.**
+> If a task is not in this file, we do not build it.
+> Mark each task `[x]` only after it is tested and committed.
 
 ---
 
-## What We Are Building
+## Project Summary
 
-A person sits in front of a laptop, answers a few prompts for 5 minutes. The system produces:
+| Item | Detail |
+|---|---|
+| **Project title** | Emotion and Mental State Detection from Audio and Video using Multimodal Deep Learning |
+| **One-liner** | A person speaks to the camera for 5 minutes. The system shows which emotions appeared and gives a screening score for depression and stress. |
+| **Input** | Single 5-minute webcam recording (video + audio) |
+| **Output 1** | Emotion timeline — which of 7 emotions appeared, and when |
+| **Output 2** | Mental state screening score — depression indicator, stress indicator, expressivity |
+| **Training data** | DAIC-WOZ (189 clinical interviews with PHQ-8 scores) — we do NOT record our own |
+| **Models we train** | 1 (Random Forest / XGBoost classifier on ~90 features) |
+| **Models we download** | 7 pretrained models, total ~1.7 GB |
+| **GPU required** | No — CPU only, 8 GB RAM laptop |
+| **This is a** | Screening tool — never a diagnostic tool |
 
-**Output 1 — Emotion Timeline (moment by moment)**
+### Example Output
+
+**Emotion Timeline:**
 ```
-0:00-0:45   Neutral
-0:45-1:20   Sad
-1:20-2:10   Neutral
-2:10-2:40   Happy
+0:00–0:45   Neutral
+0:45–1:20   Sad
+1:20–2:10   Neutral
+2:10–2:40   Happy
 Overall: 60% neutral, 25% sad, 15% happy
 ```
 
-**Output 2 — Mental State Screening Score (one number)**
+**Screening Score:**
 ```
 Depression indicator:  0.72  (high)
 Stress indicator:      0.55  (moderate)
 Expressivity:          Low
-Recommendation: suggest speaking to a counsellor
+→ "This is a screening indicator, not a diagnosis.
+    Please consult a qualified mental health professional."
 ```
 
-That's it. No weekly recording. No longitudinal tracking. One sitting, instant result.
+---
+
+## Out of Scope — DO NOT Build
+
+If you find yourself working on any of these, stop immediately.
+
+| Item | Why not |
+|---|---|
+| Multi-session tracking / trends | Not in project scope |
+| Real-time live streaming | Too complex, not needed for demo |
+| Mobile app | Web app is sufficient |
+| PDF report export | Nice-to-have, not core |
+| Body pose / gesture analysis | MediaPipe Pose adds complexity without proven value |
+| Custom deep learning / fine-tuning | We use pretrained extractors only |
+| Any GPU-dependent feature | Must run on student laptop |
+| Diagnostic language | Legal and ethical requirement |
 
 ---
 
-## What We Are NOT Building
-
-These are out of scope. If you find yourself working on any of these, stop.
-
-- Multi-session tracking or trends over time
-- Real-time live streaming analysis
-- Mobile app
-- PDF report export
-- Body pose / gesture analysis
-- Custom deep learning models or fine-tuning
-- Any GPU-dependent feature
-- Anything that says "you have depression" — we say "screening indicator"
-
----
-
-## How It Works
+## System Architecture
 
 ```
 Person answers prompts for 5 minutes
-                ↓
-          video.mp4 saved
-                ↓
-        ┌───────┴───────┐
-      face            audio
-        │                │
-        │          ┌─────┴─────┐
-        │       openSMILE    Whisper
-        │       (pitch,        │
-        │        pauses)     text
-        │            │         │
-        │            │     sentiment
-        └────────────┴─────────┘
-                     ↓
-          ~90 numbers (feature vector)
-                     ↓
-          ┌──────────┴──────────┐
-    Emotion model          Our classifier
-    (pretrained)           (Random Forest)
-          │                      │
-          ↓                      ↓
-    Emotion timeline      Screening score
+                 ↓
+           video.mp4 saved
+                 ↓
+    ┌────────────┴────────────┐
+    │                         │
+  VIDEO TRACK              AUDIO TRACK
+    │                         │
+    ▼                    ┌────┴────┐
+  Py-Feat              openSMILE  Whisper (base)
+  MediaPipe            (eGeMAPS)      │
+    │                     │           ▼
+    ▼                     ▼       Transcript
+  Face features      Audio features   │
+  (~20 numbers)      (~30 numbers)    ▼
+    │                     │      RoBERTa / MuRIL
+    │                     │           │
+    │                     │           ▼
+    │                     │      Text features
+    │                     │      (~10 numbers)
+    └─────────┬───────────┴───────────┘
+              ▼
+    Feature Vector (~90 numbers)
+              │
+    ┌─────────┴─────────┐
+    ▼                   ▼
+  Emotion Model     Screening Classifier
+  (pretrained)      (our Random Forest)
+    │                   │
+    ▼                   ▼
+  Emotion           Screening
+  Timeline          Score
+    │                   │
+    └─────────┬─────────┘
+              ▼
+         Dashboard
 ```
 
 ---
 
-## Models — Complete List
+## All Models
 
-### We download and use (DO NOT train these)
+### Pretrained — download and use as-is (DO NOT train)
 
-| # | Job | Model | Library | Size |
+| # | Purpose | Model | Library | Download Size | What it outputs |
+|---|---|---|---|---|---|
+| 1 | Face landmarks, head pose | MediaPipe Face Mesh | `mediapipe` | ~5 MB | 478 landmarks, pitch/yaw/roll |
+| 2 | Facial muscle movement | Py-Feat AU detector | `py-feat` | ~150 MB | Action Unit intensities (AU01–AU45) |
+| 3 | Emotion classification | HSEmotion / FER+ | pretrained | ~50 MB | 7 emotion probabilities per frame |
+| 4 | Acoustic features | openSMILE eGeMAPS v02 | `opensmile` | ~2 MB | 88 acoustic descriptors (pitch, jitter, shimmer, loudness) |
+| 5 | Speech → text | Whisper base | `openai-whisper` | ~140 MB | Transcript + detected language |
+| 6 | English sentiment | RoBERTa-base-sentiment | `transformers` | ~500 MB | positive / negative / neutral scores |
+| 7 | Hindi/Marathi sentiment | MuRIL | `transformers` | ~900 MB | Sentiment scores for Indic languages |
+
+### Trained by us — the ONLY model we train
+
+| # | Purpose | Algorithm | Library | Training time | Input |
+|---|---|---|---|---|---|
+| 8 | Depression/stress screening | Random Forest + XGBoost | `scikit-learn`, `xgboost` | < 1 minute on CPU | ~90 aggregated features from above |
+
+---
+
+## All Datasets
+
+| Dataset | Size | What we use it for | Access | Status |
 |---|---|---|---|---|
-| 1 | Face landmarks + head pose | MediaPipe Face Mesh | `mediapipe` | ~5 MB |
-| 2 | Face muscles (Action Units) | Py-Feat detector | `py-feat` | ~150 MB |
-| 3 | Emotion from face | HSEmotion / FER | pretrained | ~50 MB |
-| 4 | Voice features (88 numbers) | openSMILE eGeMAPS | `opensmile` | ~2 MB |
-| 5 | Speech to text | Whisper base | `openai-whisper` | ~140 MB |
-| 6 | English sentiment | RoBERTa | `transformers` | ~500 MB |
-| 7 | Hindi/Marathi sentiment | MuRIL | `transformers` | ~900 MB |
+| **DAIC-WOZ** | 189 interviews, 142 participants | Train screening classifier (PHQ-8 depression scores) | Apply: https://dcapswoz.ict.usc.edu/ | Applied |
+| **MELD** | 13,700 clips | Validate emotion timeline (7 emotion labels) | Free | Available |
+| **RAVDESS** | 24 actors, 8 emotions | Baseline only — acted data inflates accuracy | Free | Available |
+| **HindiSER** | 520 utterances, 26 speakers | Validate pipeline on Indian speakers | On request | Pending |
 
-### We train (the ONLY model we train)
-
-| # | Job | Algorithm | Library | Training time |
-|---|---|---|---|---|
-| 8 | Depression/stress screening | Random Forest + XGBoost | `scikit-learn`, `xgboost` | < 1 min on CPU |
-
-**Total download: ~1.7 GB. Total training: < 1 minute. No GPU needed.**
+**Important:** We do NOT record our own training data. DAIC-WOZ provides real clinical interviews. RAVDESS results must never be headlined — acted data gives inflated accuracy.
 
 ---
 
-## Datasets
+## All Features We Extract (~90 total)
 
-| Dataset | What it gives us | Access |
-|---|---|---|
-| **DAIC-WOZ** | 189 clinical interviews + real PHQ-8 depression scores → trains our classifier | Apply at https://dcapswoz.ict.usc.edu/ |
-| **MELD** | 13,700 conversation clips + emotion labels → validates emotion timeline | Free download |
-| **RAVDESS** | Acted emotion clips → baseline only (inflated accuracy, don't headline) | Free download |
-| **HindiSER** | 520 Hindi utterances → checks if pipeline works on Indian speakers | On request |
+### Audio Features (~30) — `ml/extractors/audio.py`
 
-We do NOT record our own training data. DAIC-WOZ already has everything we need.
+| Feature | Key | What it measures | Direction in depression |
+|---|---|---|---|
+| Pause count | `audio_pause_count` | How many silent gaps | ↑ Increased |
+| Mean pause duration | `audio_pause_mean_duration` | Average silence length | ↑ Increased |
+| Pause-to-speech ratio | `audio_pause_to_speech_ratio` | Silence vs speech time | ↑ Increased |
+| Speech duration | `audio_speech_duration` | Total speaking time | ↓ Decreased |
+| Total duration | `audio_total_duration` | Recording length | — |
+| Speech rate | `audio_speech_rate_wpm` | Words per minute | ↓ Decreased |
+| Pitch mean | `audio_f0_mean` | Average voice pitch | ↓ Decreased |
+| Pitch std | `audio_f0_std` | Pitch variability | ↓ Flatter / monotone |
+| Pitch range | `audio_f0_range` | Highest minus lowest pitch | ↓ Narrower |
+| Loudness mean | `audio_loudness_mean` | Average volume | ↓ Decreased |
+| Loudness std | `audio_loudness_std` | Volume variability | ↓ Decreased |
+| Jitter | `audio_jitter` | Voice pitch instability | ↑ Increased |
+| Shimmer | `audio_shimmer` | Voice amplitude instability | ↑ Increased |
+| MFCC 1–13 mean | `audio_mfcc_01_mean` … `audio_mfcc_13_mean` | Spectral shape averages | Varies |
+| MFCC 1–13 std | `audio_mfcc_01_std` … `audio_mfcc_13_std` | Spectral shape variability | Varies |
 
----
+### Face Features (~20) — `ml/extractors/face.py`
 
-## Build Phases
+| Feature | Key | What it measures | Direction in depression |
+|---|---|---|---|
+| AU04 mean/std | `face_au04_mean`, `face_au04_std` | Brow lowerer | ↑ More furrowing |
+| AU06 mean/std | `face_au06_mean`, `face_au06_std` | Cheek raiser (part of smile) | ↓ Less smiling |
+| AU12 mean/std | `face_au12_mean`, `face_au12_std` | Lip corner puller (smile) | ↓ Less smiling |
+| AU15 mean/std | `face_au15_mean`, `face_au15_std` | Lip corner depressor | ↑ More frowning |
+| Total AU activity | `face_au_total_activity` | Overall expressivity | ↓ Blunted affect |
+| Head movement velocity | `face_head_movement_velocity` | How much the head moves | ↓ Less movement |
+| Blink rate | `face_blink_rate_per_min` | Blinks per minute | Varies |
+| Gaze direction variance | `face_gaze_direction_variance` | Eye movement variability | ↓ Less engagement |
+| Face detection rate | `face_detection_rate` | % of frames with detected face | Quality metric |
+| Quality warning | `face_quality_warning` | True if detection rate < 50% | Quality metric |
 
-### Phase 1: Setup
-> Get the dev environment working on every team member's laptop.
+### Text Features (~10) — `ml/extractors/text.py`
 
-- [ ] 1.1 — Python 3.10+ virtual environment created
-- [ ] 1.2 — `pip install -r requirements.txt` succeeds
-- [ ] 1.3 — `ffmpeg -version` works
-- [ ] 1.4 — `config.yaml` loads in Python
-- [ ] 1.5 — Create a 5-second test video with audio for testing extractors
-
----
-
-### Phase 2: Audio Extractor (`ml/extractors/audio.py`)
-> Input: `.wav` or `.mp4` → Output: flat dict of ~30 features prefixed `audio_`
-
-**Tools:** openSMILE eGeMAPS + librosa
-
-- [ ] 2.1 — Load audio from .wav or .mp4 (librosa, sr=16000)
-- [ ] 2.2 — Energy-based VAD: find speech vs silence segments
-- [ ] 2.3 — Pause features: count, mean duration, pause-to-speech ratio
-- [ ] 2.4 — Speech rate (words/min, needs transcript as optional arg)
-- [ ] 2.5 — Pitch (F0): mean, std, range using librosa.pyin()
-- [ ] 2.6 — Loudness: RMS energy mean and std
-- [ ] 2.7 — Jitter and shimmer via openSMILE eGeMAPS
-- [ ] 2.8 — MFCC 1-13: mean and std of each coefficient
-- [ ] 2.9 — Combine all into flat dict, prefix `audio_`
-- [ ] 2.10 — Handle edge cases: silent audio, <1s clips, missing track → return None + log
-- [ ] 2.11 — Test with synthetic sine wave, verify all keys present
-
-**Output keys (~30):**
-```
-audio_pause_count, audio_pause_mean_duration, audio_pause_to_speech_ratio,
-audio_speech_rate_wpm, audio_f0_mean, audio_f0_std, audio_f0_range,
-audio_loudness_mean, audio_loudness_std, audio_jitter, audio_shimmer,
-audio_mfcc_01_mean, audio_mfcc_01_std, ... audio_mfcc_13_mean, audio_mfcc_13_std
-```
-
----
-
-### Phase 3: Face Extractor (`ml/extractors/face.py`)
-> Input: video file → Output: flat dict of ~20 features prefixed `face_`
-
-**Tools:** Py-Feat (AUs) + MediaPipe Face Mesh (head pose, blinks, gaze)
-
-- [ ] 3.1 — Load video with OpenCV, process every 3rd frame
-- [ ] 3.2 — Py-Feat: extract AU intensities per frame
-- [ ] 3.3 — AU stats: mean/std for AU04, AU06, AU12, AU15 + total AU activity
-- [ ] 3.4 — MediaPipe Face Mesh: initialize, run on sampled frames
-- [ ] 3.5 — Head pose: pitch/yaw/roll from landmarks via solvePnP
-- [ ] 3.6 — Head movement velocity: mean per-frame change in pose angles
-- [ ] 3.7 — Blink detection: eye aspect ratio → blinks/minute
-- [ ] 3.8 — Gaze direction variance from iris landmarks
-- [ ] 3.9 — Face detection rate (fraction of frames with face). quality_warning if < 0.5
-- [ ] 3.10 — Combine into flat dict, prefix `face_`
-- [ ] 3.11 — Test with synthetic video, verify dict shape
-
-**Output keys (~20):**
-```
-face_au04_mean, face_au04_std, face_au06_mean, face_au06_std,
-face_au12_mean, face_au12_std, face_au15_mean, face_au15_std,
-face_au_total_activity, face_head_movement_velocity,
-face_blink_rate_per_min, face_gaze_direction_variance,
-face_detection_rate, face_quality_warning
-```
+| Feature | Key | What it measures | Direction in depression |
+|---|---|---|---|
+| Word count | `text_word_count` | Total words spoken | ↓ Decreased |
+| First-person pronoun ratio | `text_first_person_pronoun_ratio` | I/me/my/mine/myself usage | ↑ Increased self-focus |
+| Positive sentiment | `text_sentiment_positive` | Positive tone score | ↓ Decreased |
+| Negative sentiment | `text_sentiment_negative` | Negative tone score | ↑ Increased |
+| Neutral sentiment | `text_sentiment_neutral` | Neutral tone score | Varies |
+| Mean utterance length | `text_mean_utterance_length` | Avg words per sentence | ↓ Shorter sentences |
+| Lexical diversity | `text_lexical_diversity` | Unique words / total words | ↓ Decreased |
+| Speaking time | `text_speaking_time_seconds` | Total speech time | ↓ Decreased |
+| Language | `text_language` | Detected language code | Routing metric |
 
 ---
 
-### Phase 4: Text Extractor (`ml/extractors/text.py`)
-> Input: audio file → Output: flat dict of ~10 features prefixed `text_`
+## Build Phases — Progress Tracker
 
-**Tools:** Whisper base (transcription) + RoBERTa or MuRIL (sentiment)
+### Legend
+- `[x]` = Done, tested, committed
+- `[ ]` = Not started
+- `[~]` = In progress
 
-- [ ] 4.1 — Transcribe audio with Whisper base model
-- [ ] 4.2 — Cache transcript to `data/transcripts/{filename}.json`
-- [ ] 4.3 — Detect language from Whisper output → route to correct sentiment model
-- [ ] 4.4 — English sentiment: RoBERTa → positive/negative/neutral scores
-- [ ] 4.5 — Hindi/Marathi sentiment: MuRIL → same format
-- [ ] 4.6 — First-person pronoun ratio (I/me/my/mine/myself / total words)
-- [ ] 4.7 — Mean utterance length in words
-- [ ] 4.8 — Lexical diversity (type-token ratio)
+---
+
+### Phase 1: Environment Setup ✅ COMPLETE
+> **Goal:** Every team member can run the project on their laptop.
+> **Completed:** 2026-10-30
+
+- [x] 1.1 — Python 3.10+ installed and verified (we have 3.11.9)
+- [x] 1.2 — `requirements.txt` with pinned versions, installable with pip
+- [x] 1.3 — ffmpeg installed and on PATH (v9.0.2)
+- [x] 1.4 — `config.yaml` loads via `ml/config.py` helper
+- [x] 1.5 — Test fixtures created: `test_audio.wav` (sine + silence), `test_silent.wav`, `test_video.avi`
+
+**Files created/modified:**
+- `ml/config.py` — Config loader with caching
+- `tests/generate_fixtures.py` — Generates synthetic test files
+- `tests/fixtures/` — Test audio and video files
+- `.gitignore` — Updated with `.avi`
+- `requirements.txt` — Added `sqlalchemy`, `httpx`, `joblib`, `soundfile`
+
+---
+
+### Phase 2: Audio Extractor ✅ COMPLETE
+> **Goal:** `ml/extractors/audio.py` → takes `.wav` or `.mp4`, returns ~30 features prefixed `audio_`
+> **Completed:** 2026-10-30
+
+- [x] 2.1 — Load audio from .wav or .mp4 (extracts audio from video via ffmpeg if needed)
+- [x] 2.2 — Energy-based VAD: short-time RMS energy → speech vs silence segments
+- [x] 2.3 — Pause features: count, mean duration, pause-to-speech ratio
+- [x] 2.4 — Speech rate in words/min (optional transcript argument)
+- [x] 2.5 — Pitch (F0): mean, std, range using `librosa.pyin()`
+- [x] 2.6 — Loudness: RMS energy mean and std
+- [x] 2.7 — Jitter and shimmer via openSMILE eGeMAPS
+- [x] 2.8 — MFCC 1–13: mean and std of each coefficient (26 features)
+- [x] 2.9 — All keys prefixed `audio_`, returns flat dict
+- [x] 2.10 — Edge cases: silent audio → None, short clips → None, missing file → None + log
+- [x] 2.11 — 4 tests pass: sine wave, silent audio, missing file, with transcript
+
+**Files created:**
+- `ml/extractors/audio.py` — Full implementation (~200 lines)
+- `tests/test_audio.py` — 4 test cases
+
+**How it works internally:**
+1. `_load_audio()` — loads .wav directly or extracts audio from video via ffmpeg
+2. `_compute_vad_segments()` — energy-based voice activity detection
+3. `_pause_features()` — counts and measures pauses
+4. `_pitch_features()` — F0 via librosa pyin
+5. `_loudness_features()` — RMS energy
+6. `_opensmile_features()` — jitter/shimmer via eGeMAPS
+7. `_mfcc_features()` — 13 MFCCs, mean and std each
+8. `extract()` — orchestrates all of the above, returns flat dict or None
+
+---
+
+### Phase 3: Face Extractor ⬜ NOT STARTED
+> **Goal:** `ml/extractors/face.py` → takes video file, returns ~20 features prefixed `face_`
+> **Dependencies:** None (can be built in parallel with Phase 4)
+
+**Tools needed:**
+- `py-feat` — Action Unit detection (NOT OpenFace — it doesn't pip-install)
+- `mediapipe` — Face Mesh for head pose, blink detection, gaze
+
+**Tasks:**
+- [ ] 3.1 — Load video with OpenCV, sample every 3rd frame (`config.yaml: face.frame_skip`)
+- [ ] 3.2 — Py-Feat: run AU detector on each sampled frame, collect intensities
+- [ ] 3.3 — AU summary stats: mean and std for AU04, AU06, AU12, AU15
+- [ ] 3.4 — Total AU activity: mean of sum of all AU intensities across frames
+- [ ] 3.5 — MediaPipe Face Mesh: initialize and run on sampled frames
+- [ ] 3.6 — Head pose estimation: pitch/yaw/roll from landmarks via `cv2.solvePnP`
+- [ ] 3.7 — Head movement velocity: mean per-frame change in pose angles
+- [ ] 3.8 — Blink detection: eye aspect ratio from landmarks → blinks per minute
+- [ ] 3.9 — Gaze direction: estimate from iris landmarks, compute variance
+- [ ] 3.10 — Face detection rate: fraction of frames where face was found
+- [ ] 3.11 — Quality warning: set `face_quality_warning = 1.0` if detection rate < 0.5
+- [ ] 3.12 — Combine into flat dict, all keys prefixed `face_`
+- [ ] 3.13 — Handle edge cases: no video, unreadable file, zero faces → return None + log
+- [ ] 3.14 — Test with synthetic video, verify dict has all expected keys
+
+**Technical notes:**
+- Process every 3rd frame to keep CPU time reasonable (~50 frames for 5 min at 30fps/3)
+- Py-Feat and MediaPipe run on the SAME frames — no need to process twice
+- If Py-Feat is too slow, fall back to MediaPipe blendshapes for AU approximation
+- AU04 = brow lowerer, AU06 = cheek raiser, AU12 = smile, AU15 = frown
+
+---
+
+### Phase 4: Text Extractor ⬜ NOT STARTED
+> **Goal:** `ml/extractors/text.py` → takes audio file, returns ~10 features prefixed `text_`
+> **Dependencies:** None (can be built in parallel with Phase 3)
+
+**Tools needed:**
+- `openai-whisper` — base model (~140 MB) for transcription + language detection
+- `transformers` — RoBERTa for English sentiment, MuRIL for Hindi/Marathi
+
+**Tasks:**
+- [ ] 4.1 — Whisper transcription: load base model, transcribe audio file
+- [ ] 4.2 — Cache transcript to `data/transcripts/{filename}.json` (skip if exists)
+- [ ] 4.3 — Language detection: read from Whisper output, route to correct sentiment model
+- [ ] 4.4 — English sentiment: load `cardiffnlp/twitter-roberta-base-sentiment-latest`
+- [ ] 4.5 — Hindi/Marathi sentiment: load `google/muril-base-cased` with sentiment head
+- [ ] 4.6 — First-person pronoun ratio: count(I/me/my/mine/myself) / total words
+- [ ] 4.7 — Mean utterance length: split transcript into sentences, mean word count
+- [ ] 4.8 — Lexical diversity: unique words / total words (type-token ratio)
 - [ ] 4.9 — Total word count
-- [ ] 4.10 — Silence-adjusted speaking time
-- [ ] 4.11 — Combine into flat dict, prefix `text_`
-- [ ] 4.12 — Test with known audio, verify caching and keys
+- [ ] 4.10 — Silence-adjusted speaking time: total duration minus pause time
+- [ ] 4.11 — Combine into flat dict, all keys prefixed `text_`
+- [ ] 4.12 — Handle edge cases: no speech detected, transcription fails → return None + log
+- [ ] 4.13 — Test: verify transcript caching, correct keys, language routing
 
-**Output keys (~10):**
+**Technical notes:**
+- Whisper base model is ~140 MB, runs on CPU in ~30s for 5 min audio
+- Models are loaded once and cached in memory — do NOT reload per call
+- MuRIL does not have a built-in sentiment head — may need a small fine-tuned layer
+- Transcript cache prevents re-running Whisper on the same file (expensive operation)
+
+---
+
+### Phase 5: Pipeline Runner ⬜ NOT STARTED
+> **Goal:** `ml/pipeline.py` — video in → feature vector out. Batch mode for directories.
+> **Dependencies:** Phase 2 + Phase 3 + Phase 4 must be complete
+
+**Tasks:**
+- [ ] 5.1 — Split video into video + audio tracks using ffmpeg subprocess
+- [ ] 5.2 — `process_session(video_path)` → call all 3 extractors, merge dicts
+- [ ] 5.3 — Add metadata: session_id, duration, timestamp, list of warnings
+- [ ] 5.4 — Handle partial failures: if one extractor returns None, return others + warning
+- [ ] 5.5 — `scripts/extract_batch.py` CLI: `--input-dir`, `--output-csv`
+- [ ] 5.6 — Resumable batch: skip session_ids already in output CSV
+- [ ] 5.7 — Progress bar with tqdm, error log to `data/extraction_errors.log`
+- [ ] 5.8 — Test: process test video end-to-end, verify CSV output has all ~90 columns
+
+**Technical notes:**
+- ffmpeg command: `ffmpeg -y -i video.mp4 -vn -acodec pcm_s16le -ar 16000 -ac 1 audio.wav`
+- Temp files are cleaned up after processing
+- Extractors run sequentially (not parallel) to avoid RAM overflow on 8 GB laptops
+- CSV uses session filename as session_id
+
+---
+
+### Phase 6: Training & Evaluation ⬜ NOT STARTED
+> **Goal:** Train Random Forest + XGBoost on DAIC-WOZ features, evaluate properly.
+> **Dependencies:** Phase 5 must be complete. DAIC-WOZ access required for real data.
+
+**Tasks:**
+- [ ] 6.1 — Load features CSV + labels CSV, join on `session_id`
+- [ ] 6.2 — Participant-level split: group by `participant_id` so same person never in train AND test
+- [ ] 6.3 — 5-fold stratified cross-validation using `StratifiedGroupKFold`
+- [ ] 6.4 — Train `RandomForestClassifier` with default hyperparameters
+- [ ] 6.5 — Train `XGBClassifier` with default hyperparameters
+- [ ] 6.6 — Report metrics: accuracy, macro-F1, AUC — each with 95% bootstrap confidence intervals
+- [ ] 6.7 — Print confusion matrix to console
+- [ ] 6.8 — Save feature importances to `data/models/feature_importances.csv`
+- [ ] 6.9 — Save best model to `data/models/screening_model_YYYYMMDD.joblib`
+- [ ] 6.10 — `ml/evaluate.py`: load saved model → ROC curve, confusion matrix plot, top-20 feature bar chart
+- [ ] 6.11 — `ml/fusion.py`: weighted average of 3 modality scores (configurable weights)
+
+**Technical notes:**
+- `StratifiedGroupKFold` ensures participant-level split AND class balance
+- Bootstrap CI: resample predictions 1000 times, compute metric each time, take 2.5th and 97.5th percentiles
+- Save both RF and XGB, report which one performs better
+- Fusion weights default: face=0.4, audio=0.35, text=0.25 (tunable)
+
+---
+
+### Phase 7: Backend API ⬜ NOT STARTED
+> **Goal:** FastAPI server that accepts video uploads, runs pipeline, returns results.
+> **Dependencies:** Phase 5 must be complete
+
+**Tasks:**
+- [ ] 7.1 — Database schema: `users`, `sessions`, `features` tables in SQLite (Postgres-swappable)
+- [ ] 7.2 — SQLAlchemy models in `backend/models/database.py`
+- [ ] 7.3 — `POST /users` — register participant with consent flag
+- [ ] 7.4 — `DELETE /users/{id}` — delete user and ALL their data (consent withdrawal, DPDP Act)
+- [ ] 7.5 — `POST /sessions` — upload video file, return session_id immediately
+- [ ] 7.6 — Background task: run `process_session()`, store features in DB, delete raw video
+- [ ] 7.7 — `GET /sessions/{id}` — return features, emotion timeline, screening score
+- [ ] 7.8 — `GET /users/{id}/sessions` — list all sessions for a user with scores
+- [ ] 7.9 — `GET /sessions/{id}/status` — return processing status: pending/processing/complete/failed
+- [ ] 7.10 — CORS setup: allow frontend origin
+- [ ] 7.11 — Error handling: proper HTTP status codes, structured error responses
+- [ ] 7.12 — Tests: test each endpoint with `httpx` test client
+
+**Technical notes:**
+- SQLite for development, schema designed so Postgres is a one-line swap in `config.yaml`
+- Raw video is deleted after feature extraction unless `config.backend.keep_raw = true`
+- Background task uses FastAPI's `BackgroundTasks` — no Celery needed
+- All timestamps in UTC ISO 8601
+
+---
+
+### Phase 8: Frontend Dashboard ⬜ NOT STARTED
+> **Goal:** React app with 4 pages. Clean, readable, no animations.
+> **Dependencies:** Phase 7 must be complete (needs API endpoints)
+
+**Tasks:**
+- [ ] 8.1 — Project setup: React + react-router-dom + axios + recharts
+- [ ] 8.2 — **Consent page**: informed consent form with checkboxes, must complete before recording
+- [ ] 8.3 — **Record page**: webcam capture using MediaRecorder API, on-screen prompts, countdown timer
+- [ ] 8.4 — Upload flow: POST video to `/sessions`, poll `/sessions/{id}/status`, redirect on completion
+- [ ] 8.5 — **Session Result page**: emotion timeline as horizontal band chart, screening score as gauge
+- [ ] 8.6 — Feature breakdown table: extracted features grouped by modality (audio/face/text)
+- [ ] 8.7 — **History page**: line chart of scores across past sessions for one user
+- [ ] 8.8 — Disclaimer text on EVERY page that shows a score (exact text below)
+- [ ] 8.9 — Navigation bar + routing between pages
+- [ ] 8.10 — Clean, readable styling — no animations per spec
+
+**Required disclaimer (exact text, every score page):**
 ```
-text_word_count, text_first_person_pronoun_ratio,
-text_sentiment_positive, text_sentiment_negative, text_sentiment_neutral,
-text_mean_utterance_length, text_lexical_diversity,
-text_speaking_time_seconds, text_language
+"This is a screening indicator, not a diagnosis.
+ Please consult a qualified mental health professional."
 ```
 
 ---
 
-### Phase 5: Pipeline Runner (`ml/pipeline.py`)
-> Input: video.mp4 → Output: complete feature vector (~90 numbers) + metadata
+### Phase 9: Integration & Testing ⬜ NOT STARTED
+> **Goal:** Everything works end-to-end. No bugs, no data leaks.
 
-- [ ] 5.1 — Split video into video + audio tracks using ffmpeg
-- [ ] 5.2 — `process_session(video_path)`: run all 3 extractors, merge dicts
-- [ ] 5.3 — Add metadata: duration, timestamp, warnings
-- [ ] 5.4 — Handle partial failures: if one extractor fails, return the rest + warning
-- [ ] 5.5 — `scripts/extract_batch.py`: process a directory of videos → CSV
-- [ ] 5.6 — Resumable: skip videos already in output CSV
-- [ ] 5.7 — Progress bar (tqdm) and error log
-- [ ] 5.8 — Test end-to-end with test video
+- [ ] 9.1 — End-to-end test: record video → upload → pipeline runs → dashboard shows results
+- [ ] 9.2 — Unit tests for each extractor with synthetic clips
+- [ ] 9.3 — Profile pipeline: time each stage for a 5-minute video, identify bottleneck
+- [ ] 9.4 — Memory check: peak usage stays under 8 GB
+- [ ] 9.5 — Privacy audit: no raw video stored after processing, no PII in logs, no data in git
+- [ ] 9.6 — Edge cases: no face detected, silent audio, non-English speech, very short clips
 
 ---
 
-### Phase 6: Training & Evaluation (`ml/train.py` + `ml/evaluate.py`)
-> Train the ONE model we own: screening classifier on DAIC-WOZ features
+### Phase 10: Evaluation & Report ⬜ NOT STARTED
+> **Goal:** Real numbers for the final report.
 
-- [ ] 6.1 — Load features CSV + labels CSV, join on session_id
-- [ ] 6.2 — Participant-level split (same person never in train AND test)
-- [ ] 6.3 — 5-fold stratified CV using StratifiedGroupKFold
-- [ ] 6.4 — Train Random Forest
-- [ ] 6.5 — Train XGBoost
-- [ ] 6.6 — Report: accuracy, macro-F1, AUC with 95% bootstrap CIs
-- [ ] 6.7 — Confusion matrix
-- [ ] 6.8 — Feature importances → CSV
-- [ ] 6.9 — Save best model to `data/models/` with timestamp
-- [ ] 6.10 — `evaluate.py`: ROC curve, confusion matrix plot, top-20 feature importance
-- [ ] 6.11 — Late fusion in `fusion.py`: weighted average of 3 modality scores
+- [ ] 10.1 — Obtain DAIC-WOZ dataset access
+- [ ] 10.2 — Run pipeline on all 189 DAIC-WOZ interviews → extract features
+- [ ] 10.3 — Train and evaluate screening classifier → report accuracy, F1, AUC with CIs
+- [ ] 10.4 — Run emotion model on MELD → report accuracy, macro-F1
+- [ ] 10.5 — Test on Indian speakers → compare with English results, report drop
+- [ ] 10.6 — Fill in README results tables (all "—" entries)
+- [ ] 10.7 — Generate plots: ROC curve, confusion matrix, feature importance bar chart
 
----
+**Target numbers:**
 
-### Phase 7: Backend API (`backend/`)
-> FastAPI server: upload video → run pipeline → return results
-
-- [ ] 7.1 — SQLite schema: users, sessions, features (Postgres-swappable)
-- [ ] 7.2 — SQLAlchemy models
-- [ ] 7.3 — `POST /users` — register with consent flag
-- [ ] 7.4 — `DELETE /users/{id}` — delete user + all data (consent withdrawal)
-- [ ] 7.5 — `POST /sessions` — upload video, return session_id, start background task
-- [ ] 7.6 — Background task: run pipeline, store features, delete raw video
-- [ ] 7.7 — `GET /sessions/{id}` — features, emotion timeline, screening score
-- [ ] 7.8 — `GET /users/{id}/sessions` — list sessions with scores
-- [ ] 7.9 — `GET /sessions/{id}/status` — pending/processing/complete/failed
-- [ ] 7.10 — CORS setup + error handling
-- [ ] 7.11 — Tests with httpx
+| Metric | Target | Dataset |
+|---|---|---|
+| Emotion accuracy | 70%+ | MELD |
+| Depression screening accuracy | 80%+ | DAIC-WOZ |
+| Depression screening AUC | 0.75+ | DAIC-WOZ |
+| Processing time per 5-min session | < 30 seconds | Local |
+| Peak memory | < 8 GB | Local |
+| Works on Indian speakers | Yes, with reported numbers | Custom / HindiSER |
 
 ---
 
-### Phase 8: Frontend Dashboard (`frontend/`)
-> React app: 4 pages, no animations, Recharts for charts
+## Overall Progress
 
-- [ ] 8.1 — React + react-router-dom + axios + recharts setup
-- [ ] 8.2 — **Consent page**: must complete before recording is enabled
-- [ ] 8.3 — **Record page**: webcam capture, on-screen prompts, countdown, upload on stop
-- [ ] 8.4 — **Session Result page**: emotion timeline (band chart), screening score (gauge), feature table
-- [ ] 8.5 — **History page**: line chart of past session scores
-- [ ] 8.6 — Disclaimer on every score page: "This is a screening indicator, not a diagnosis. Please consult a qualified mental health professional."
-- [ ] 8.7 — Navigation bar + routing
-- [ ] 8.8 — Clean, readable styling
-
----
-
-### Phase 9: Integration & Testing
-> Make sure everything works together
-
-- [ ] 9.1 — End-to-end: record → upload → pipeline → dashboard shows results
-- [ ] 9.2 — Unit tests for each extractor (synthetic clips)
-- [ ] 9.3 — Profile pipeline: time each stage for 5-min video
-- [ ] 9.4 — Memory check: peak usage < 8 GB
-- [ ] 9.5 — Privacy audit: no raw video stored, no PII in logs
-- [ ] 9.6 — Edge cases: no face, silent audio, non-English, short clips
-
----
-
-### Phase 10: Evaluation & Report
-> Get real numbers for the report
-
-- [ ] 10.1 — Get DAIC-WOZ access
-- [ ] 10.2 — Run pipeline on DAIC-WOZ (extract features for 189 interviews)
-- [ ] 10.3 — Train + evaluate screening classifier → accuracy, F1, AUC
-- [ ] 10.4 — Run emotion model on MELD → accuracy, macro-F1
-- [ ] 10.5 — Test on Indian speakers → compare with English results
-- [ ] 10.6 — Fill README results tables
-- [ ] 10.7 — Generate plots: ROC, confusion matrix, feature importances
+| Phase | Status | Date Completed |
+|---|---|---|
+| Phase 1: Environment Setup | ✅ Complete | 2026-10-30 |
+| Phase 2: Audio Extractor | ✅ Complete | 2026-10-30 |
+| Phase 3: Face Extractor | ⬜ Not Started | — |
+| Phase 4: Text Extractor | ⬜ Not Started | — |
+| Phase 5: Pipeline Runner | ⬜ Not Started | — |
+| Phase 6: Training & Evaluation | ⬜ Not Started | — |
+| Phase 7: Backend API | ⬜ Not Started | — |
+| Phase 8: Frontend Dashboard | ⬜ Not Started | — |
+| Phase 9: Integration Testing | ⬜ Not Started | — |
+| Phase 10: Evaluation & Report | ⬜ Not Started | — |
 
 ---
 
 ## Timeline
 
 ```
-Week 1      Phase 1 (Setup) + apply for DAIC-WOZ
-Week 2-3    Phase 2 (Audio) + Phase 3 (Face) + Phase 4 (Text)  ← parallel
-Week 4      Phase 5 (Pipeline runner)
-Week 5      Phase 6 (Training logic)
-Week 6-7    Phase 7 (Backend) + Phase 8 (Frontend)  ← parallel
-Week 8      Phase 9 (Integration testing)
-Week 9-10   Phase 10 (Evaluation on real data + report)
+Week 1       Phase 1 (Setup) + apply for DAIC-WOZ          ✅ Done
+Week 2–3     Phase 2 (Audio) + Phase 3 (Face) + Phase 4 (Text)  ← parallel
+Week 4       Phase 5 (Pipeline runner)
+Week 5       Phase 6 (Training logic)
+Week 6–7     Phase 7 (Backend) + Phase 8 (Frontend)  ← parallel
+Week 8       Phase 9 (Integration testing)
+Week 9–10    Phase 10 (Evaluation on real data + report)
 ```
 
-## Dependencies
+## Phase Dependencies
 
 ```
 Phase 2 (Audio) ──┐
@@ -318,38 +487,31 @@ Phase 4 (Text)  ──┘         │
                                               Phase 9 (Integration) ── Phase 10 (Report)
 ```
 
----
-
-## Target Numbers
-
-| Metric | Target |
-|---|---|
-| Emotion accuracy (MELD) | 70%+ |
-| Depression screening accuracy (DAIC-WOZ) | 80%+ |
-| Processing time per 5-min session | < 30 seconds |
-| Works on Indian speakers | Yes, with reported results |
-| Runs on CPU, 8 GB RAM laptop | Yes |
+- Phases 2, 3, 4 can run **in parallel** (assign to different team members)
+- Phases 7 and 8 can run **in parallel** once Phase 5 works
 
 ---
 
-## Risks
+## Risks & Mitigations
 
-| Risk | What happens | Fix |
-|---|---|---|
-| DAIC-WOZ access delayed | Can't train screening model | Build emotion part first, use synthetic labels to test pipeline |
-| Py-Feat slow on CPU | Face extraction too slow | Process every 3rd frame, cap video at 5 min |
-| Whisper bad on Indian English | Wrong transcripts | Try whisper small; allow manual transcript override |
-| MuRIL has no sentiment head | Hindi sentiment fails | Fine-tune tiny classification head on Hindi sentiment data |
-| RAM overflow | Crashes on 8 GB laptop | Load one model at a time, unload after use |
+| # | Risk | Impact | Mitigation | Owner |
+|---|---|---|---|---|
+| R1 | DAIC-WOZ access delayed | Cannot train screening classifier | Build emotion part first; use synthetic labels to test pipeline | Team |
+| R2 | Py-Feat too slow on CPU | Face extraction > 2 min for 5-min video | Process every 3rd frame; fall back to MediaPipe blendshapes | Phase 3 |
+| R3 | Whisper inaccurate on Indian English | Wrong transcripts → bad text features | Try whisper small model; allow manual transcript override | Phase 4 |
+| R4 | MuRIL has no sentiment classification head | Hindi sentiment scoring fails | Fine-tune a tiny classification head on available Hindi sentiment data | Phase 4 |
+| R5 | RAM overflow on 8 GB laptop | OOM crashes | Load one model at a time; unload after use; run extractors sequentially | Phase 5 |
+| R6 | Team members blocked on dependencies | Cascading delays | Phases 2/3/4 are independent — assign to different people | Team |
 
 ---
 
 ## Rules During Development
 
 1. **Check this file before starting any task.** If the task isn't listed here, don't do it.
-2. **No scope creep.** If you think of a cool feature, add it to a "maybe later" list, don't build it.
-3. **Test each phase before moving on.** A broken extractor will break everything downstream.
-4. **Commit after every working phase.** So you can roll back.
-5. **Never say "diagnosis."** Always "screening indicator."
-6. **Never commit data files.** Check `git status` before every push.
-7. **CPU only.** If it needs a GPU, you're doing it wrong.
+2. **No scope creep.** Cool feature ideas go in a "maybe later" list, not into code.
+3. **Test each phase before moving on.** A broken extractor breaks everything downstream.
+4. **Commit after every working phase.** Tag it so you can roll back.
+5. **Never say "diagnosis."** Always say "screening indicator."
+6. **Never commit data files.** Run `git status` before every push. Check `.gitignore`.
+7. **CPU only.** If your code needs a GPU to run, you are doing it wrong.
+8. **Mark tasks complete in this file** when they are tested and pushed.
