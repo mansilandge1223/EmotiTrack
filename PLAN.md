@@ -251,35 +251,32 @@ Person answers prompts for 5 minutes
 
 ---
 
-### Phase 3: Face Extractor ⬜ NOT STARTED
-> **Goal:** `ml/extractors/face.py` → takes video file, returns ~20 features prefixed `face_`
-> **Dependencies:** None (can be built in parallel with Phase 4)
+### Phase 3: Face Extractor ✅ COMPLETE
+> **Goal:** `ml/extractors/face.py` → takes video file, returns ~14 features prefixed `face_`
+> **Completed:** 2026-10-31
 
-**Tools needed:**
-- `py-feat` — Action Unit detection (NOT OpenFace — it doesn't pip-install)
-- `mediapipe` — Face Mesh for head pose, blink detection, gaze
+- [x] 3.1 — Load video with OpenCV, sample every 3rd frame (`config.yaml: face.frame_skip`)
+- [x] 3.2 — Py-Feat v2: run Detectorv2 on each sampled frame via temp image files
+- [x] 3.3 — AU summary stats: mean and std for AU04, AU06, AU12, AU15
+- [x] 3.4 — Total AU activity: mean of sum of all AU intensities across frames
+- [x] 3.5 — MediaPipe FaceLandmarker (Tasks API v1.2): run on sampled frames
+- [x] 3.6 — Head pose estimation: pitch/yaw/roll from landmarks via `cv2.solvePnP`
+- [x] 3.7 — Head movement velocity: mean per-frame change in pose angles
+- [x] 3.8 — Blink detection: eye aspect ratio from landmarks → blinks per minute
+- [x] 3.9 — Gaze direction: iris landmarks variance
+- [x] 3.10 — Face detection rate + quality warning if < 0.5
+- [x] 3.11 — Edge cases: missing file, unreadable video → return None + log
+- [x] 3.12 — 3 tests pass: synthetic video, missing file, feature count
 
-**Tasks:**
-- [ ] 3.1 — Load video with OpenCV, sample every 3rd frame (`config.yaml: face.frame_skip`)
-- [ ] 3.2 — Py-Feat: run AU detector on each sampled frame, collect intensities
-- [ ] 3.3 — AU summary stats: mean and std for AU04, AU06, AU12, AU15
-- [ ] 3.4 — Total AU activity: mean of sum of all AU intensities across frames
-- [ ] 3.5 — MediaPipe Face Mesh: initialize and run on sampled frames
-- [ ] 3.6 — Head pose estimation: pitch/yaw/roll from landmarks via `cv2.solvePnP`
-- [ ] 3.7 — Head movement velocity: mean per-frame change in pose angles
-- [ ] 3.8 — Blink detection: eye aspect ratio from landmarks → blinks per minute
-- [ ] 3.9 — Gaze direction: estimate from iris landmarks, compute variance
-- [ ] 3.10 — Face detection rate: fraction of frames where face was found
-- [ ] 3.11 — Quality warning: set `face_quality_warning = 1.0` if detection rate < 0.5
-- [ ] 3.12 — Combine into flat dict, all keys prefixed `face_`
-- [ ] 3.13 — Handle edge cases: no video, unreadable file, zero faces → return None + log
-- [ ] 3.14 — Test with synthetic video, verify dict has all expected keys
+**Files created:**
+- `ml/extractors/face.py` — Full implementation (~250 lines)
+- `tests/test_face.py` — 3 test cases
 
 **Technical notes:**
-- Process every 3rd frame to keep CPU time reasonable (~50 frames for 5 min at 30fps/3)
-- Py-Feat and MediaPipe run on the SAME frames — no need to process twice
-- If Py-Feat is too slow, fall back to MediaPipe blendshapes for AU approximation
-- AU04 = brow lowerer, AU06 = cheek raiser, AU12 = smile, AU15 = frown
+- Py-Feat v2 uses `Detectorv2.detect()` with image-based detection (bypasses torchcodec)
+- MediaPipe v1.2 uses Tasks API (`FaceLandmarker`), not deprecated `mp.solutions`
+- FaceLandmarker model auto-downloads on first run (~3.7 MB)
+- Model file gitignored at `data/models/*.task`
 
 ---
 
@@ -453,7 +450,7 @@ Person answers prompts for 5 minutes
 |---|---|---|
 | Phase 1: Environment Setup | ✅ Complete | 2026-10-30 |
 | Phase 2: Audio Extractor | ✅ Complete | 2026-10-30 |
-| Phase 3: Face Extractor | ⬜ Not Started | — |
+| Phase 3: Face Extractor | ✅ Complete | 2026-10-31 |
 | Phase 4: Text Extractor | ⬜ Not Started | — |
 | Phase 5: Pipeline Runner | ⬜ Not Started | — |
 | Phase 6: Training & Evaluation | ⬜ Not Started | — |
