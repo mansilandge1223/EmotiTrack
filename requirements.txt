@@ -11,9 +11,13 @@ librosa==0.10.2
 fastapi==0.111.0
 uvicorn==0.30.1
 matplotlib==3.9.0
+py-feat==0.6.3
 xgboost==2.0.3
 pyyaml==6.0.1
 tqdm==4.66.4
 python-multipart==0.0.9
 aiofiles==23.2.1
-
+sqlalchemy==2.0.30
+httpx==0.27.0
+joblib==1.4.2
+soundfile==0.12.1

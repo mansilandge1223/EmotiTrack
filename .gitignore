@@ -2,6 +2,7 @@ data/raw/
 venv/
 *.mp4
 *.wav
+*.avi
 *.jpg
 __pycache__/
 .env
