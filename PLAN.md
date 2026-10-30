@@ -280,34 +280,30 @@ Person answers prompts for 5 minutes
 
 ---
 
-### Phase 4: Text Extractor ⬜ NOT STARTED
-> **Goal:** `ml/extractors/text.py` → takes audio file, returns ~10 features prefixed `text_`
-> **Dependencies:** None (can be built in parallel with Phase 3)
+### Phase 4: Text Extractor ✅ COMPLETE
+> **Goal:** `ml/extractors/text.py` → takes audio file, returns ~9 features prefixed `text_`
+> **Completed:** 2026-10-31
 
-**Tools needed:**
-- `openai-whisper` — base model (~140 MB) for transcription + language detection
-- `transformers` — RoBERTa for English sentiment, MuRIL for Hindi/Marathi
+- [x] 4.1 — Whisper transcription: load base model, transcribe audio file (fp16=False for CPU)
+- [x] 4.2 — Cache transcript to `data/transcripts/{filename}.json`
+- [x] 4.3 — Language detection from Whisper → route to RoBERTa (English) or MuRIL (Indic)
+- [x] 4.4 — Sentiment analysis: positive/negative/neutral scores
+- [x] 4.5 — First-person pronoun ratio
+- [x] 4.6 — Mean utterance length, lexical diversity, word count
+- [x] 4.7 — Speaking time from Whisper segments
+- [x] 4.8 — Language encoded as float (0=en, 1=hi, 2=mr, 3=other)
+- [x] 4.9 — Edge cases: no speech, empty transcript → return None + log
+- [x] 4.10 — 5 tests pass: linguistic features, empty text, missing file, caching, extraction
 
-**Tasks:**
-- [ ] 4.1 — Whisper transcription: load base model, transcribe audio file
-- [ ] 4.2 — Cache transcript to `data/transcripts/{filename}.json` (skip if exists)
-- [ ] 4.3 — Language detection: read from Whisper output, route to correct sentiment model
-- [ ] 4.4 — English sentiment: load `cardiffnlp/twitter-roberta-base-sentiment-latest`
-- [ ] 4.5 — Hindi/Marathi sentiment: load `google/muril-base-cased` with sentiment head
-- [ ] 4.6 — First-person pronoun ratio: count(I/me/my/mine/myself) / total words
-- [ ] 4.7 — Mean utterance length: split transcript into sentences, mean word count
-- [ ] 4.8 — Lexical diversity: unique words / total words (type-token ratio)
-- [ ] 4.9 — Total word count
-- [ ] 4.10 — Silence-adjusted speaking time: total duration minus pause time
-- [ ] 4.11 — Combine into flat dict, all keys prefixed `text_`
-- [ ] 4.12 — Handle edge cases: no speech detected, transcription fails → return None + log
-- [ ] 4.13 — Test: verify transcript caching, correct keys, language routing
+**Files created:**
+- `ml/extractors/text.py` — Full implementation (~250 lines)
+- `tests/test_text.py` — 5 test cases
 
 **Technical notes:**
-- Whisper base model is ~140 MB, runs on CPU in ~30s for 5 min audio
-- Models are loaded once and cached in memory — do NOT reload per call
-- MuRIL does not have a built-in sentiment head — may need a small fine-tuned layer
-- Transcript cache prevents re-running Whisper on the same file (expensive operation)
+- Whisper base model (~140 MB) auto-downloads on first run, cached in `~/.cache/whisper`
+- Sentiment model lazy-loaded and cached in memory — not reloaded per call
+- Transcript caching prevents re-running Whisper (saves ~30s per file)
+- Handles video files by extracting audio via ffmpeg first
 
 ---
 
@@ -451,7 +447,7 @@ Person answers prompts for 5 minutes
 | Phase 1: Environment Setup | ✅ Complete | 2026-10-30 |
 | Phase 2: Audio Extractor | ✅ Complete | 2026-10-30 |
 | Phase 3: Face Extractor | ✅ Complete | 2026-10-31 |
-| Phase 4: Text Extractor | ⬜ Not Started | — |
+| Phase 4: Text Extractor | ✅ Complete | 2026-10-31 |
 | Phase 5: Pipeline Runner | ⬜ Not Started | — |
 | Phase 6: Training & Evaluation | ⬜ Not Started | — |
 | Phase 7: Backend API | ⬜ Not Started | — |
