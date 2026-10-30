@@ -17,3 +17,4 @@ frontend/build/
 *.db
 data/models/*.pkl
 data/models/*.joblib
+data/models/*.task
