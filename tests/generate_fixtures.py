@@ -78,6 +78,30 @@ def generate_silent_wav(path: Path, duration: float = 5.0,
         wf.writeframes(b'\x00\x00' * n_samples)
 
 
+def generate_video_with_audio(path: Path, duration: float = 5.0) -> None:
+    """Generate a .mp4 with both video and audio tracks using ffmpeg."""
+    import subprocess
+
+    video_path = path.parent / "test_video.avi"
+    audio_path = path.parent / "test_audio.wav"
+
+    if not video_path.exists():
+        generate_test_video(video_path)
+    if not audio_path.exists():
+        generate_sine_wav(audio_path)
+
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(video_path), "-i", str(audio_path),
+             "-c:v", "copy", "-c:a", "aac", "-shortest", str(path)],
+            capture_output=True, check=True,
+        )
+    except FileNotFoundError:
+        print("  WARNING: ffmpeg not found, skipping video+audio fixture")
+    except subprocess.CalledProcessError as e:
+        print(f"  WARNING: ffmpeg mux failed: {e.stderr.decode()[:200]}")
+
+
 def main():
     FIXTURES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -89,6 +113,9 @@ def main():
 
     print("Generating test_video.avi (5s synthetic face)...")
     generate_test_video(FIXTURES_DIR / "test_video.avi")
+
+    print("Generating test_video_with_audio.mp4 (video + audio muxed)...")
+    generate_video_with_audio(FIXTURES_DIR / "test_video_with_audio.mp4")
 
     print(f"\nFixtures created in {FIXTURES_DIR}/")
     for f in sorted(FIXTURES_DIR.iterdir()):
