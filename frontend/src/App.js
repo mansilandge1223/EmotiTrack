@@ -1,20 +1,48 @@
-﻿import React from "react";
+import React, { useState } from "react";
 import "./App.css";
+import UploadPage from "./pages/UploadPage";
+import ResultsPage from "./pages/ResultsPage";
+
 export default function App() {
+  const [page, setPage] = useState("home");
+  const [sessionId, setSessionId] = useState(null);
+
+  const handleUploadStart = (sid) => {
+    setSessionId(sid);
+    setPage("results");
+  };
+
   return (
-    <main className="app">
-      <nav className="navbar"><h2>EmotiTrack</h2><span>AI-POWERED MONITORING</span></nav>
-      <section className="hero">
-        <p className="eyebrow">PERSONALIZED BEHAVIORAL MONITORING SYSTEM</p>
-        <h1>Understand Behavioral Patterns</h1>
-        <p className="subtitle">A centralized platform for recording, monitoring and analyzing behavioral patterns using audio and video data.</p>
-        <div className="cards">
-          <article><div className="emoji">◉</div><h3>Smart Monitoring</h3><p>Organize behavioral observations in one place.</p></article>
-          <article><div className="emoji">✦</div><h3>AI Analysis</h3><p>Build tools to analyze audio and video patterns.</p></article>
-          <article><div className="emoji">▥</div><h3>Visual Reports</h3><p>Present observations through clear reports.</p></article>
+    <div className="app">
+      <nav className="navbar">
+        <h2 onClick={() => setPage("home")} style={{ cursor: "pointer" }}>
+          EmotiTrack
+        </h2>
+        <span>MULTIMODAL FEATURE EXTRACTION</span>
+      </nav>
+
+      {page === "home" && (
+        <div className="hero">
+          <p className="eyebrow">DEMO DASHBOARD</p>
+          <h1>Emotion &amp; Mental State Detection</h1>
+          <p className="subtitle">
+            Upload a video or record from your webcam. The system extracts 62
+            features from face, voice, and speech in real-time.
+          </p>
+          <UploadPage onSessionStart={handleUploadStart} />
+          <p className="note">
+            This is a screening indicator, not a diagnosis. Please consult a
+            qualified mental health professional.
+          </p>
         </div>
-        <p className="note">EmotiTrack supports observation and monitoring; AI outputs should not be treated as definitive emotion diagnoses.</p>
-      </section>
-    </main>
+      )}
+
+      {page === "results" && sessionId && (
+        <ResultsPage
+          sessionId={sessionId}
+          onBack={() => setPage("home")}
+        />
+      )}
+    </div>
   );
 }
