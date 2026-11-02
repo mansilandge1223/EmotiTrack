@@ -1,17 +1,46 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
 
 const API = "http://localhost:8000";
+const MAX_RECORD_SECONDS = 60;
+
+const QUESTIONS = [
+  "How are you feeling today? Describe your mood.",
+  "Tell me about your sleep — have you been sleeping well lately?",
+  "What activities have you enjoyed recently?",
+  "Is there anything that has been worrying you?",
+  "How would you describe your energy level this week?",
+];
 
 export default function UploadPage({ onSessionStart }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(MAX_RECORD_SECONDS);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
   const videoRef = useRef(null);
   const mediaRecorder = useRef(null);
   const chunks = useRef([]);
   const fileInputRef = useRef(null);
+  const timerRef = useRef(null);
+  const questionTimerRef = useRef(null);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
+      mediaRecorder.current.stop();
+    }
+    setRecording(false);
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (questionTimerRef.current) clearInterval(questionTimerRef.current);
+  }, []);
+
+  // Auto-stop when timer hits 0
+  useEffect(() => {
+    if (recording && timeLeft <= 0) {
+      stopRecording();
+    }
+  }, [timeLeft, recording, stopRecording]);
 
   const uploadFile = async (file) => {
     setUploading(true);
@@ -59,20 +88,27 @@ export default function UploadPage({ onSessionStart }) {
         const blob = new Blob(chunks.current, { type: "video/webm" });
         setRecordedBlob(blob);
         stream.getTracks().forEach((t) => t.stop());
-        videoRef.current.srcObject = null;
+        if (videoRef.current) videoRef.current.srcObject = null;
       };
 
       recorder.start();
       setRecording(true);
+      setTimeLeft(MAX_RECORD_SECONDS);
+      setCurrentQuestion(0);
+
+      // Countdown timer
+      timerRef.current = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+
+      // Cycle questions every 12 seconds
+      questionTimerRef.current = setInterval(() => {
+        setCurrentQuestion((prev) =>
+          prev < QUESTIONS.length - 1 ? prev + 1 : prev
+        );
+      }, 12000);
     } catch (err) {
       alert("Camera access denied: " + err.message);
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorder.current) {
-      mediaRecorder.current.stop();
-      setRecording(false);
     }
   };
 
@@ -84,6 +120,12 @@ export default function UploadPage({ onSessionStart }) {
       uploadFile(file);
       setRecordedBlob(null);
     }
+  };
+
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
   if (uploading) {
@@ -127,6 +169,26 @@ export default function UploadPage({ onSessionStart }) {
           <div className="upload-icon">🎥</div>
           <h3>Record from Webcam</h3>
 
+          {/* Timer */}
+          {recording && (
+            <div className="timer-bar">
+              <div
+                className={`timer-display ${timeLeft <= 10 ? "timer-warning" : ""}`}
+              >
+                {formatTime(timeLeft)}
+              </div>
+              <div className="timer-track">
+                <div
+                  className="timer-fill"
+                  style={{
+                    width: `${((MAX_RECORD_SECONDS - timeLeft) / MAX_RECORD_SECONDS) * 100}%`,
+                  }}
+                ></div>
+              </div>
+            </div>
+          )}
+
+          {/* Video Preview */}
           <video
             ref={videoRef}
             className="preview-video"
@@ -134,10 +196,26 @@ export default function UploadPage({ onSessionStart }) {
             style={{ display: recording ? "block" : "none" }}
           />
 
+          {/* Question Prompt */}
+          {recording && (
+            <div className="question-prompt">
+              <div className="question-label">
+                Question {currentQuestion + 1} of {QUESTIONS.length}
+              </div>
+              <div className="question-text">
+                "{QUESTIONS[currentQuestion]}"
+              </div>
+            </div>
+          )}
+
+          {/* Controls */}
           {!recording && !recordedBlob && (
-            <button className="btn btn-primary" onClick={startRecording}>
-              Start Recording
-            </button>
+            <div>
+              <button className="btn btn-primary" onClick={startRecording}>
+                Start Recording
+              </button>
+              <p className="record-note">Max {MAX_RECORD_SECONDS} seconds. Answer the on-screen questions.</p>
+            </div>
           )}
 
           {recording && (
@@ -153,7 +231,7 @@ export default function UploadPage({ onSessionStart }) {
 
           {recordedBlob && (
             <div>
-              <p>Recording ready!</p>
+              <p className="record-done">Recording complete!</p>
               <button className="btn btn-primary" onClick={uploadRecording}>
                 Upload & Analyze
               </button>
