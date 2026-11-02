@@ -19,3 +19,4 @@ data/models/*.pkl
 data/models/*.joblib
 data/models/*.task
 data/transcripts/*.json
+data/uploads/
