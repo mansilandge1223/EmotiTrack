@@ -199,8 +199,18 @@ export default function UploadPage({ onSessionStart }) {
           {/* Question Prompt */}
           {recording && (
             <div className="question-prompt">
-              <div className="question-label">
-                Question {currentQuestion + 1} of {QUESTIONS.length}
+              <div className="question-header">
+                <div className="question-label">
+                  Question {currentQuestion + 1} of {QUESTIONS.length}
+                </div>
+                {currentQuestion < QUESTIONS.length - 1 && (
+                  <button
+                    className="btn-skip"
+                    onClick={() => setCurrentQuestion((prev) => prev + 1)}
+                  >
+                    Next →
+                  </button>
+                )}
               </div>
               <div className="question-text">
                 "{QUESTIONS[currentQuestion]}"
