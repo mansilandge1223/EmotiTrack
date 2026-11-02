@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh-keygen:*)",
+      "Bash(python -c \"from ml.config import get_config, get; c = get_config\\(\\); print\\(''Config loaded OK''\\); print\\(''Sample rate:'', get\\(''audio'', ''sample_rate''\\)\\); print\\(''Whisper model:'', get\\(''text'', ''whisper_model''\\)\\); print\\(''Frame skip:'', get\\(''face'', ''frame_skip''\\)\\)\")",
+      "Bash(curl -L -o /c/Users/abhis/Downloads/ffmpeg.zip \"https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip\")",
+      "Bash(unzip -o /c/Users/abhis/Downloads/ffmpeg.zip -d /c/Users/abhis/Downloads/ffmpeg-bin/)",
+      "Bash(mkdir -p /c/ffmpeg)",
+      "Bash(cp /c/Users/abhis/Downloads/ffmpeg-bin/ffmpeg-9.0.2-essentials_build/bin/*.exe /c/ffmpeg/)",
+      "Bash(export PATH=\"/c/ffmpeg:$PATH\")",
+      "Bash(python -m tests.test_audio)",
+      "Bash(pip install:*)",
+      "Bash(python -c \"import cv2; print\\(''OpenCV:'', cv2.__version__\\)\")",
+      "Bash(python -c \"import mediapipe; print\\(''MediaPipe:'', mediapipe.__version__\\)\")",
+      "Bash(python -c \"from feat import Detector; print\\(''Py-Feat: OK''\\)\")",
+      "Bash(python -m tests.test_face)",
+      "Bash(python:*)",
+      "Bash(ffmpeg -y -i D:/EmotiTrack/tests/fixtures/test_video.avi -i D:/EmotiTrack/tests/fixtures/test_audio.wav -c:v copy -c:a aac -shortest D:/EmotiTrack/tests/fixtures/test_video_with_audio.mp4)",
+      "Bash(curl -L -o D:/EmotiTrack/tests/fixtures/test_real.mp4 \"https://www.sample-videos.com/video321/mp4/240/big_buck_bunny_240p_1mb.mp4\")",
+      "Bash(ffprobe -v quiet -show_entries format=duration,nb_streams -show_entries stream=codec_type D:/EmotiTrack/mytest.mp4)"
+    ]
+  }
+}
